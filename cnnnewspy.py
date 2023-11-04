@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 from lxml import html
+import re
 
 # Function to scrape and extract English text without punctuation and special symbols
 def scrape_article(url):
@@ -10,13 +11,20 @@ def scrape_article(url):
         tree = html.fromstring(response.text)
         paragraphs = tree.xpath("//p")
         
-        combined_content = ""
+        article_text = ""
         for p in paragraphs:
-            combined_content += html.tostring(p, method='html').decode()
+            article_text += p.text_content() + " "
+
+        # Remove punctuation, special symbols, and retain only English text
+        article_text = re.sub(r'[^a-zA-Z\s]', '', article_text)
         
-        return combined_content
+        # Split the text into words and remove duplicates
+        words = article_text.split()
+        unique_words = list(set(words))
+        
+        return unique_words
     except Exception as e:
-        return ""
+        return []
 
 # Streamlit app
 st.title("News Article Scraper")
@@ -27,12 +35,13 @@ input_urls = st.text_area("URLs (One URL per line):", "")
 if st.button("Scrape Articles"):
     urls = input_urls.strip().split("\n")
     if urls:
-        combined_content = ""  # To store combined content from all articles
+        unique_words_set = set()  # To store unique words across all articles
         for url in urls:
-            article_content = scrape_article(url.strip())
-            combined_content += article_content
+            article_words = scrape_article(url.strip())
+            unique_words_set.update(article_words)
         
-        st.markdown(combined_content, unsafe_allow_html=True)
+        combined_content = ' '.join(unique_words_set)  # Combine unique words from all articles
+        st.text_area("Combined Unique English Text", combined_content)
     else:
         st.warning("Please enter one or more valid URLs.")
 
