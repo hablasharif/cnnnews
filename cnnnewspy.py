@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 from lxml import html
-import re
 
 # Function to scrape and extract English text without punctuation and special symbols
 def scrape_article(url):
@@ -9,19 +8,15 @@ def scrape_article(url):
         response = requests.get(url)
         response.raise_for_status()
         tree = html.fromstring(response.text)
-        article_text = tree.xpath("/html/body/div[1]/section[3]/section[1]/section[1]/article/section/main//text()")
-        article_text = " ".join(article_text)
+        paragraphs = tree.xpath("//p")
         
-        # Remove punctuation, special symbols, and retain only English text
-        article_text = re.sub(r'[^a-zA-Z\s]', '', article_text)
+        combined_content = ""
+        for p in paragraphs:
+            combined_content += html.tostring(p, method='html').decode()
         
-        # Split the text into words and remove duplicates
-        words = article_text.split()
-        unique_words = list(set(words))
-        
-        return unique_words
+        return combined_content
     except Exception as e:
-        return []
+        return ""
 
 # Streamlit app
 st.title("News Article Scraper")
@@ -32,13 +27,12 @@ input_urls = st.text_area("URLs (One URL per line):", "")
 if st.button("Scrape Articles"):
     urls = input_urls.strip().split("\n")
     if urls:
-        unique_words_set = set()  # To store unique words across all articles
+        combined_content = ""  # To store combined content from all articles
         for url in urls:
-            article_words = scrape_article(url.strip())
-            unique_words_set.update(article_words)
+            article_content = scrape_article(url.strip())
+            combined_content += article_content
         
-        combined_content = ' '.join(unique_words_set)  # Combine unique words from all articles
-        st.text_area("Combined Unique English Text", combined_content)
+        st.markdown(combined_content, unsafe_allow_html=True)
     else:
         st.warning("Please enter one or more valid URLs.")
 
