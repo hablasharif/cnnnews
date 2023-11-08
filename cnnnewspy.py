@@ -2,7 +2,6 @@ import streamlit as st
 import requests
 from lxml import html
 import re
-from concurrent.futures import ThreadPoolExecutor
 
 # Function to scrape and extract English text without punctuation and special symbols
 def scrape_article(url):
@@ -37,16 +36,11 @@ if st.button("Scrape Articles"):
     urls = input_urls.strip().split("\n")
     if urls:
         unique_words_set = set()  # To store unique words across all articles
-        
-        # Use ThreadPoolExecutor to scrape URLs concurrently
-        with ThreadPoolExecutor(max_workers=4) as executor:  # Adjust max_workers as needed
-            article_futures = [executor.submit(scrape_article, url.strip()) for url in urls]
-            
-            for future in article_futures:
-                article_words = future.result()
-                unique_words_set.update(article_words)
+        for url in urls:
+            article_words = scrape_article(url.strip())
+            unique_words_set.update(article_words)
         
         combined_content = ' '.join(unique_words_set)  # Combine unique words from all articles
         st.text_area("Combined Unique English Text", combined_content)
     else:
-        st.warning("Please enter one or more valid URLs.")
+        st.warning("Please enter one or more valid URLs.") 
