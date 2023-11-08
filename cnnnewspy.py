@@ -1,28 +1,29 @@
 import streamlit as st
-import httpx
-import lxml.html as lh
+import requests
+from lxml import html
 import re
-import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 # Function to scrape and extract English text without punctuation and special symbols
-async def scrape_article_async(url, session):
+def scrape_article(url):
     try:
-        async with session.get(url) as response:
-            response.raise_for_status()
-            text = await response.text()
+        response = requests.get(url)
+        response.raise_for_status()
+        tree = html.fromstring(response.text)
+        paragraphs = tree.xpath("//p")
+        
+        article_text = ""
+        for p in paragraphs:
+            article_text += p.text_content() + " "
 
-            tree = lh.fromstring(text)
-            paragraphs = tree.xpath("//p")
-
-            article_text = ""
-            for p in paragraphs:
-                article_text += p.text_content() + " "
-
-            article_text = re.sub(r'[^a-zA-Z\s]', '', article_text)
-            words = article_text.split()
-            unique_words = list(set(words))
-
-            return unique_words
+        # Remove punctuation, special symbols, and retain only English text
+        article_text = re.sub(r'[^a-zA-Z\s]', '', article_text)
+        
+        # Split the text into words and remove duplicates
+        words = article_text.split()
+        unique_words = list(set(words))
+        
+        return unique_words
     except Exception as e:
         return []
 
@@ -32,25 +33,20 @@ st.title("News Article Scraper")
 st.write("Enter URLs of news articles to scrape their content (one URL per line):")
 input_urls = st.text_area("URLs (One URL per line):", "")
 
-async def main():
-    if st.button("Scrape Articles"):
-        urls = input_urls.strip().split("\n")
-        if urls:
-            unique_words_set = set()  # To store unique words across all articles
-
-            async with httpx.AsyncClient() as session:
-                tasks = [scrape_article_async(url.strip(), session) for url in urls]
-                article_words = await asyncio.gather(*tasks)
-
-                for words in article_words:
-                    unique_words_set.update(words)
-
-            combined_content = ' '.join(unique_words_set)  # Combine unique words from all articles
-            st.text_area("Combined Unique English Text", combined_content)
-        else:
-            st.warning("Please enter one or more valid URLs.")
-
-st.text("Note: This is an asynchronous web scraping example for educational purposes.")
-
-if __name__ == "__main__":
-    asyncio.run(main())
+if st.button("Scrape Articles"):
+    urls = input_urls.strip().split("\n")
+    if urls:
+        unique_words_set = set()  # To store unique words across all articles
+        
+        # Use ThreadPoolExecutor to scrape URLs concurrently
+        with ThreadPoolExecutor(max_workers=4) as executor:  # Adjust max_workers as needed
+            article_futures = [executor.submit(scrape_article, url.strip()) for url in urls]
+            
+            for future in article_futures:
+                article_words = future.result()
+                unique_words_set.update(article_words)
+        
+        combined_content = ' '.join(unique_words_set)  # Combine unique words from all articles
+        st.text_area("Combined Unique English Text", combined_content)
+    else:
+        st.warning("Please enter one or more valid URLs.")
